@@ -1,4 +1,4 @@
-```markdown
+
 #  Kilimo Trust: Protecting Smallholder Income from Hidden Fertilizer Risks
 
 > **"Piga picha au sema, jua hatari kabla ya kutumia."**  
