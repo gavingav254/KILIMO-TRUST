@@ -1,23 +1,22 @@
-
-#  Kilimo Trust: Protecting Smallholder Income from Hidden Fertilizer Risks
+# 🌱 Kilimo Trust: Protecting Smallholder Income from Hidden Fertilizer Risks
 
 > **"Piga picha au sema, jua hatari kabla ya kutumia."**  
 > *(Scan or speak — know the risk before you apply.)*
 
 **Kilimo Trust** is a voice-first, offline-capable Progressive Web App (PWA) built for the **Kenya AI Challenge - AgriFin Track**. It empowers smallholder farmers to verify fertilizer compliance with EU export regulations *before* application, preventing harvest rejection, securing income, and ensuring loan repayment.
 
-##  Live Demo & Resources
+## 🚀 Live Demo & Resources
 *   **📱 Live App:** [Insert Lovable App Link Here]
 *   **📊 Pitch Deck:** [Insert Pitch Deck Link Here]
 *   **🎥 Video Demo:** [Insert Video Link Here]
 
-##  The Problem
+## 💡 The Problem
 Smallholder organic farmers in Kenya risk total harvest rejection at EU borders due to hidden contaminants (e.g., Cadmium, Phosphonates) in locally available fertilizers. 
 *   **Literacy Barrier:** Farmers cannot read technical chemical names on labels.
 *   **Financial Risk:** Rejected crops lead to lost income → loan defaults → broken value chains.
 *   **Invisibility:** The risk is hidden until it’s too late (at the border).
 
-##  The Solution
+## ✅ The Solution
 Kilimo Trust allows farmers to:
 1.  **Scan** a fertilizer label via camera or **Speak** the name.
 2.  **Analyze** ingredients against EU Regulations (Reg 2019/1009, 2023/915) using a Knowledge Graph.
@@ -39,13 +38,14 @@ Kilimo Trust allows farmers to:
 
 ```mermaid
 graph TD
-    A[Farmer Phone (Lovable PWA)] -->|Photo/Voice Input| B(Featherless AI)
+    A[Farmer Phone Lovable PWA] -->|Photo/Voice Input| B(Featherless AI)
     B -->|Extracted Text| C{Masumi Agent}
     C -->|Query Substance| D[(Neo4j Graph DB)]
     D -->|Risk Level + Advice| C
     C -->|Generate Voice Note| B
     B -->|Audio URL + Risk Card| A
     A -->|Display Result| E[Farmer]
+```
 
 ### Key Features
 *   **Offline-First:** Caches top 20 fertilizer profiles and voice files for use in remote areas.
@@ -95,7 +95,7 @@ cd kilimo-trust
 
 ---
 
-##  Team Kilimo Trust
+## 👥 Team Kilimo Trust
 
 | Name | Role | Contribution |
 | :--- | :--- | :--- |
@@ -109,3 +109,4 @@ cd kilimo-trust
 
 ## 📄 License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```
