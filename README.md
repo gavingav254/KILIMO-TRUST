@@ -46,7 +46,6 @@ graph TD
     C -->|Generate Voice Note| B
     B -->|Audio URL + Risk Card| A
     A -->|Display Result| E[Farmer]
-```
 
 ### Key Features
 *   **Offline-First:** Caches top 20 fertilizer profiles and voice files for use in remote areas.
