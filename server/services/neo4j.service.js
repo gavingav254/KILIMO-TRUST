@@ -4,17 +4,8 @@
  * This service manages the Neo4j driver lifecycle and exposes
  * typed query helpers used by the fertilizer and escalation routes.
  *
- * Graph Schema (relevant nodes & relationships):
- *
- *   (:Substance {name, cadmium_ppm, phosphonate, heavy_metals})
- *       -[:FOUND_IN]->
- *   (:FertilizerProfile {id, brand_name, risk_status, batch_prefix_keywords[]})
- *       -[:REGULATED_BY]->
- *   (:EU_Regulation {code, name, cadmium_limit_ppm, effective_date})
- *       -[:PRESCRIBES]->
- *   (:RiskLevel {level: GREEN|AMBER|RED, reason_en, reason_sw})
- *
- *   (:FertilizerProfile)-[:HAS_SAFE_ALTERNATIVE]->(:FertilizerProfile)
+ * Fallback: If Neo4j cannot be reached, the service enters MOCK DATABASE mode
+ * using the top20_fertilizers.json configuration and a local in-memory array.
  *
  * @module services/neo4j.service
  */
@@ -25,24 +16,41 @@ const neo4j = require("neo4j-driver");
 const logger = require("../middleware/logger");
 
 let driver;
+let useMock = false;
+let mockEscalations = [];
 
 /**
  * Initialise the Neo4j driver and verify the connection.
  * Called once at server startup.
  */
 async function connectNeo4j() {
-  driver = neo4j.driver(
-    process.env.NEO4J_URI,
-    neo4j.auth.basic(process.env.NEO4J_USER, process.env.NEO4J_PASSWORD),
-    {
-      maxConnectionPoolSize: 50,
-      connectionAcquisitionTimeout: 10_000, // 10 s
-      logging: neo4j.logging.console("warn"),
-    }
-  );
+  const uri = process.env.NEO4J_URI || "";
+  
+  if (!uri || uri.includes("your-instance")) {
+    logger.warn("⚠️ Neo4j URI is empty or default placeholder. Running in Mock Database Mode.");
+    useMock = true;
+    return null;
+  }
 
-  await driver.verifyConnectivity();
-  return driver;
+  try {
+    driver = neo4j.driver(
+      uri,
+      neo4j.auth.basic(process.env.NEO4J_USER, process.env.NEO4J_PASSWORD),
+      {
+        maxConnectionPoolSize: 50,
+        connectionAcquisitionTimeout: 5000, // 5s connection acquisition timeout
+        logging: neo4j.logging.console("warn"),
+      }
+    );
+
+    await driver.verifyConnectivity();
+    logger.info("Neo4j database connected successfully ✓");
+    return driver;
+  } catch (err) {
+    logger.error(`⚠️ Failed to connect to Neo4j (${err.message}). Falling back to Mock Database Mode.`);
+    useMock = true;
+    return null;
+  }
 }
 
 /**
@@ -50,17 +58,19 @@ async function connectNeo4j() {
  * @throws {Error} if called before connectNeo4j()
  */
 function getDriver() {
+  if (useMock) return null;
   if (!driver) throw new Error("Neo4j driver not initialised. Call connectNeo4j() first.");
   return driver;
 }
 
 /**
  * Run a read-only Cypher query.
- * @param {string} cypher - Cypher query string
- * @param {object} params  - Named parameters for the query
- * @returns {Promise<import('neo4j-driver').Record[]>}
  */
 async function readQuery(cypher, params = {}) {
+  if (useMock) {
+    logger.warn(`[MOCK DB] Intercepted read query: ${cypher.split("\n")[0]}...`);
+    return [];
+  }
   const session = getDriver().session({ defaultAccessMode: neo4j.session.READ });
   try {
     const result = await session.run(cypher, params);
@@ -71,12 +81,13 @@ async function readQuery(cypher, params = {}) {
 }
 
 /**
- * Run a write Cypher query (CREATE / MERGE / SET).
- * @param {string} cypher
- * @param {object} params
- * @returns {Promise<import('neo4j-driver').Record[]>}
+ * Run a write Cypher query.
  */
 async function writeQuery(cypher, params = {}) {
+  if (useMock) {
+    logger.warn(`[MOCK DB] Intercepted write query: ${cypher.split("\n")[0]}...`);
+    return [];
+  }
   const session = getDriver().session({ defaultAccessMode: neo4j.session.WRITE });
   try {
     const result = await session.run(cypher, params);
@@ -87,15 +98,23 @@ async function writeQuery(cypher, params = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Domain-Specific Helpers
+// Domain-Specific Helpers (with Mock Fallbacks)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Look up a fertilizer profile by its unique ID.
- * @param {string} id - e.g. "yaramila_chukua_01"
- * @returns {Promise<object|null>} FertilizerProfile node properties or null
  */
 async function getFertilizerById(id) {
+  if (useMock) {
+    const TOP_20 = require("../data/top20_fertilizers.json");
+    const item = TOP_20.find((f) => f.id === id);
+    if (!item) return null;
+    return {
+      ...item,
+      safe_alternatives: item.safe_alternative_ids || [],
+    };
+  }
+
   const records = await readQuery(
     `MATCH (f:FertilizerProfile {id: $id})
      OPTIONAL MATCH (f)-[:HAS_SAFE_ALTERNATIVE]->(alt:FertilizerProfile)
@@ -111,11 +130,24 @@ async function getFertilizerById(id) {
 
 /**
  * Fuzzy-search fertilizer profiles by brand name or batch keyword.
- * Uses Neo4j full-text index if available, otherwise falls back to CONTAINS.
- * @param {string} term - Free-text search term from OCR or voice
- * @returns {Promise<object[]>}
  */
 async function searchFertilizers(term) {
+  if (useMock) {
+    const TOP_20 = require("../data/top20_fertilizers.json");
+    const cleanTerm = (term || "").toLowerCase();
+    
+    const matches = TOP_20.filter((f) => 
+      f.brand_name.toLowerCase().includes(cleanTerm) ||
+      f.batch_prefix_keywords.some((kw) => kw.toLowerCase().includes(cleanTerm))
+    );
+
+    // Sort matches by RED first, then AMBER, then GREEN to replicate Cypher ordering
+    return matches.sort((a, b) => {
+      const order = { RED: 0, AMBER: 1, GREEN: 2 };
+      return order[a.risk_status] - order[b.risk_status];
+    }).slice(0, 10);
+  }
+
   const records = await readQuery(
     `MATCH (f:FertilizerProfile)
      WHERE toLower(f.brand_name) CONTAINS toLower($term)
@@ -131,10 +163,16 @@ async function searchFertilizers(term) {
 
 /**
  * Retrieve all 20 profiles in the offline cache set.
- * These are pre-tagged with is_offline_cached: true in the graph.
- * @returns {Promise<object[]>}
  */
 async function getOfflineCacheProfiles() {
+  if (useMock) {
+    const TOP_20 = require("../data/top20_fertilizers.json");
+    return TOP_20.map((f) => ({
+      ...f,
+      safe_alternatives: f.safe_alternative_ids || [],
+    }));
+  }
+
   const records = await readQuery(
     `MATCH (f:FertilizerProfile {is_offline_cached: true})
      OPTIONAL MATCH (f)-[:HAS_SAFE_ALTERNATIVE]->(alt:FertilizerProfile)
@@ -149,9 +187,25 @@ async function getOfflineCacheProfiles() {
 
 /**
  * Persist a new escalation case node in the graph.
- * @param {object} caseData - { case_id, device_id, batch_keywords, gps, image_b64, voice_b64, status }
  */
 async function createEscalationCase(caseData) {
+  if (useMock) {
+    const newCase = {
+      ...caseData,
+      created_at: new Date().toISOString(),
+      resolved_at: null,
+      expert_verdict: null,
+      expert_notes: null,
+    };
+    // Avoid duplicates in memory array
+    const exists = mockEscalations.some(c => c.case_id === caseData.case_id);
+    if (!exists) {
+      mockEscalations.push(newCase);
+    }
+    logger.info(`[MOCK DB] Created escalation case in memory: ${caseData.case_id}`);
+    return;
+  }
+
   await writeQuery(
     `CREATE (c:EscalationCase {
        case_id:          $case_id,
@@ -173,11 +227,20 @@ async function createEscalationCase(caseData) {
 
 /**
  * Update an escalation case with an expert verdict.
- * @param {string} caseId
- * @param {"SAFE"|"UNSAFE"|"NEEDS_MORE_INFO"} verdict
- * @param {string} notes
  */
 async function resolveEscalationCase(caseId, verdict, notes) {
+  if (useMock) {
+    const c = mockEscalations.find((x) => x.case_id === caseId);
+    if (c) {
+      c.status = "RESOLVED";
+      c.expert_verdict = verdict;
+      c.expert_notes = notes;
+      c.resolved_at = new Date().toISOString();
+      logger.info(`[MOCK DB] Resolved escalation case: ${caseId} as ${verdict}`);
+    }
+    return;
+  }
+
   await writeQuery(
     `MATCH (c:EscalationCase {case_id: $caseId})
      SET c.status       = 'RESOLVED',
@@ -190,10 +253,18 @@ async function resolveEscalationCase(caseId, verdict, notes) {
 
 /**
  * Get all escalation cases, optionally filtered by status.
- * @param {"PENDING"|"IN_REVIEW"|"RESOLVED"|null} status
- * @returns {Promise<object[]>}
  */
 async function getEscalationCases(status = null) {
+  if (useMock) {
+    const items = [...mockEscalations];
+    // Sort descending by created_at date
+    items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (status && status !== "ALL") {
+      return items.filter((x) => x.status === status);
+    }
+    return items;
+  }
+
   const cypher = status
     ? `MATCH (c:EscalationCase {status: $status}) RETURN c ORDER BY c.created_at DESC`
     : `MATCH (c:EscalationCase) RETURN c ORDER BY c.created_at DESC`;
