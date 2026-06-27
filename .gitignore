@@ -1,0 +1,27 @@
+# ── Node ────────────────────────────────
+node_modules/
+npm-debug.log*
+
+# ── Environment ─────────────────────────
+.env
+*.local
+
+# ── Logs ────────────────────────────────
+logs/
+*.log
+
+# ── Uploads & Generated Files ───────────
+server/uploads/
+server/public/audio/*.mp3
+server/public/audio/*.ogg
+
+# ── OS ──────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor ──────────────────────────────
+.vscode/
+.idea/
+
+# ── Test Coverage ────────────────────────
+coverage/

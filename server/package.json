@@ -1,0 +1,45 @@
+{
+  "name": "kilimo-trust-server",
+  "version": "1.0.0",
+  "description": "Kilimo Trust Backend API — Fertilizer compliance, offline sync, expert escalation, and Masumi agent orchestration for the Kenya AI Challenge AgriFin Track.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "seed": "node scripts/seed_neo4j.js",
+    "test": "jest --detectOpenHandles"
+  },
+  "keywords": [
+    "kilimo-trust",
+    "agrifin",
+    "kenya",
+    "fertilizer",
+    "offline-pwa",
+    "neo4j",
+    "masumi"
+  ],
+  "author": "Team Kilimo Trust",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.3.1",
+    "express-validator": "^7.1.0",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "neo4j-driver": "^5.21.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^10.0.0",
+    "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.4",
+    "supertest": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

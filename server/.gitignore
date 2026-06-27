@@ -1,0 +1,9 @@
+node_modules/
+.env
+logs/
+uploads/
+public/audio/*.mp3
+public/audio/*.ogg
+*.log
+.DS_Store
+coverage/
